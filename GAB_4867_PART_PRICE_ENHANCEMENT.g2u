@@ -1,0 +1,57 @@
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'12490 Hook
+v.Local.spart.Declare(string)
+v.Local.ssql.Declare(string)
+v.Local.sret.Declare(string)
+v.Local.i.Declare(long)
+v.Local.fListPrice.Declare(Float)
+v.Local.fquantity.Declare(Float)
+v.Local.fDiscount.Declare(Float)
+v.Local.fNewPrice.Declare(Float)
+v.Local.sPartCode.Declare(string)
+v.Local.scustomer.Declare(string)
+v.Local.sCustCode.Declare(string)
+v.Local.sorderno.Declare(string)
+
+F.Intrinsic.Control.Try
+	'Set Values
+	v.local.fquantity.Set(v.Passed.000001)
+	f.Intrinsic.String.LPad(v.Passed.000005,"0",7,v.Local.sorderno)
+	f.Intrinsic.String.GSSPartString(v.Passed.000071,v.Passed.000072,v.Local.spart)
+	F.ODBC.Connection!CON.OpenConnection(V.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass)
+	
+	'Get List Price and Part Price Code
+	f.Intrinsic.String.Build("SELECT TEXT_INFO2, AMT_PRICE FROM V_INVENTORY_ALL WHERE PART='{0}'",V.Local.spart,v.Local.ssql)
+	f.ODBC.Connection!CON.executeandreturn(v.Local.ssql,v.Local.sret)
+	f.Intrinsic.String.Split(v.Local.sret,"*!*",v.Local.sret)
+	v.Local.sPartCode.Set(v.Local.sret(0))
+	v.Local.fListPrice.Set(v.Local.sret(1))
+	
+	'Set customer code, and get the customer's code
+	f.Intrinsic.String.Build("SELECT CUSTOMER FROM V_ORDER_HEADER WHERE ORDER_NO='{0}'",V.Local.sorderno,v.Local.ssql)
+	f.ODBC.Connection!CON.executeandreturn(v.Local.ssql,v.Local.scustomer)
+	f.Intrinsic.String.Build("SELECT PRICE_CLASS FROM V_CUSTOMER_SALES WHERE CUSTOMER='{0}'",v.Local.scustomer,v.Local.ssql)
+	f.ODBC.Connection!CON.executeandreturn(v.Local.ssql,v.Local.sCustCode)
+	
+	'Get the discount percentage
+	F.Intrinsic.String.Build("SELECT * FROM V_OE_PC_QUANTITY WHERE CD='{0}' AND CUST_CLASS='{1}' ORDER BY QTY",v.Local.sPartCode,v.Local.sCustCode,v.Local.ssql)
+	f.Data.DataTable.CreateFromSQL("dt","con",v.Local.ssql)
+	f.Intrinsic.Control.For(v.Local.i,0,v.DataTable.dt.RowCount--,1)
+		f.Intrinsic.Control.If(v.Local.fquantity,>=,v.DataTable.dt(v.Local.i).QTY!FIELDVAL)
+			v.Local.fDiscount.Set(v.DataTable.dt(v.Local.i).MULTIPLIER!FIELDVAL)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.Next(v.Local.i)
+	
+	'Set the discount on the form
+	v.Passed.000067.Set(v.Local.fListPrice)
+	v.Passed.000274.Set(v.Local.fDiscount)
+	v.Passed.000284.Set("Y")
+F.Intrinsic.Control.Catch
+	F.ODBC.Connection!CON.Close
+	F.Intrinsic.UI.Msgbox(V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+
+Program.Sub.Main.End
